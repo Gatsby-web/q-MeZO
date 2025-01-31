@@ -1,6 +1,6 @@
-# MeZO on Medium-sized Masked Language Models
+# q-MeZO on Medium-sized Masked Language Models
 
-This part of the code is for q-MeZO experiments on RoBERTa-large. It is based on [LM-Kernel-FT](https://github.com/princeton-nlp/LM-Kernel-FT) and [LM-BFF](https://github.com/princeton-nlp/LM-BFF).
+This part of the code is for q-MeZO experiments on RoBERTa-large. It is based on [MeZO](https://github.com/princeton-nlp/MeZO/tree/main/medium_models).
 
 ## Installation
 
@@ -39,20 +39,24 @@ To reproduce our results in the paper, we also provide two example files `finetu
 # Adam fine-tuning
 TASK=SST-2 K=16 SEED=42 BS=8 LR=1e-5 MODEL=roberta-large bash finetune.sh
 
-# Adam fine-tuning + prefix-tuning
-TASK=SST-2 K=16 SEED=42 BS=8 LR=1e-2 MODEL=roberta-large EXTRA_TAG=prefix bash finetune.sh --prefix_tuning --num_prefix 5 --no_reparam --prefix_init_by_real_act
-
 # Adam fine-tuning + LoRA
 TASK=SST-2 K=16 SEED=42 BS=8 LR=1e-4 MODEL=roberta-large EXTRA_TAG=lora bash finetune.sh --apply_lora --lora_r 8 --lora_alpha 16
 
 # MeZO
 TASK=SST-2 K=16 SEED=42 BS=64 LR=1e-6 EPS=1e-3 MODEL=roberta-large bash mezo.sh
 
-# MeZO + prefix-tuning
-TASK=SST-2 K=16 SEED=42 BS=64 LR=1e-2 EPS=1e-1 MODEL=roberta-large EXTRA_TAG=prefix bash mezo.sh --prefix_tuning --num_prefix 5 --no_reparam --prefix_init_by_real_act
-
 # MeZO + LoRA
 TASK=SST-2 K=16 SEED=42 BS=64 LR=1e-4 EPS=1e-3 MODEL=roberta-large EXTRA_TAG=lora bash mezo.sh --apply_lora --lora_r 8 --lora_alpha 16
+
+# q-MeZO-SGD
+TASK=SST-2 K=16 SEED=13 BS=64 LR=1e-6 EPS=1e-3 STEP=12500 EVAL_STEP=1250 MODEL=roberta-large bash mezo_nspsa.sh
+
+# q-MeZO-SGD-M
+TASK=SST-2 K=16 SEED=13 BS=64 LR=1e-6 EPS=1e-3 STEP=12500 EVAL_STEP=1250 MODEL=roberta-large bash mezo_nspsa_sgdmmt.sh
+
+# q-MeZO-Adam
+TASK=SNLI K=16 SEED=13 BS=64 LR=1e-6 EPS=1e-3 STEP=12500 EVAL_STEP=1250 MODEL=roberta-large bash mezo_nspsa_adam.sh
+
 ```
 You can designate different hyperparameters by passing different environment variables as shown above. You can also directly add arguments at the end of the command to override the default ones. For all the hyperparameters you can control via environment variables, please refer to `finetune.sh` and `mezo.sh`. For the hyperparameters we used in our experiments, please refer to Appendix D of our paper.
 
@@ -65,17 +69,3 @@ python tools/gather_result.py --condition "{'tag': 'k16-roberta-large-ft', 'task
 ```
 
 Then the program will find all the trials that satisfy the condition in `./log`, and print the mean/std of the final results. Note that the task names are all lower-cased here.
-
-
-## Ablations
-
-RoBERTa-large models can be fine-tuned on most single GPUs, so we did not yet implement all of the memory-efficient ZO variants discussed in Appendix B. For now, if you want to run ablations other ZO ablations, you can add the flag `--zero_order_use_trainer_optim`, which will store the ZO gradients in the `param.grad` buffer and then use a PyTorch optimizer as usual. This causes the total memory consumption for ZO to be twice that of inference, which is still substantially less than that of backpropagation. The ablations can then be run with the additional following flags: 
-- ZO-Adam: `--optimizer "adam"`
-- ZO-Momentum: `--momentum <beta>`
-- $n$-SPSA with $n>1$: `--zero_order_sample <n>` and you can add a linear or constant scheduler on it with `--zero_order_sample_scheduler {"linear", "constant"}`
-- No prompt: `--few_shot_type finetune`
-
-Appendix B discusses variants of ZO that modify the expectation and the variance. To run those one can use the following flags.
-- Modify variance: `--zo_variant {"grad_norm", "param_norm"}`
-- Recompute the control variate at the start of each epoch: `--recmopute_norms`
-- Modify expectation: `--change_grad_estimate`
